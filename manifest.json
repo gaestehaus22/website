@@ -1,0 +1,36 @@
+{
+  "name": "Gästehaus 22 Asten",
+  "short_name": "Gästehaus22",
+  "id": "/",
+  "lang": "de-DE",
+  "description": "Monteurzimmer & Arbeiterunterkunft in Asten bei Linz",
+  "start_url": "/?utm_source=web_app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#222222",
+  "theme_color": "#222222",
+  "categories": ["hospitality", "accommodation"],
+  "icons": [
+    {
+      "src": "/assets/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icons/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}
