@@ -2,13 +2,80 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Redirecting...</title>
-    <script>
-        // .replace() clears the current page from session history
-        window.location.replace("https://gaestehaus22.github.io/ledger/");
-    </script>
+    <title>Protected Redirect</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .crypto-box {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            text-align: center;
+            max-width: 320px;
+            width: 100%;
+        }
+        h2 { color: #333; margin-top: 0; font-size: 20px; }
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin: 15px 0;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #0070f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        button:hover { background-color: #0051a8; }
+        .error { color: #ff3333; font-size: 14px; margin-top: 10px; display: none; }
+    </style>
 </head>
 <body>
-    <p>If you are not redirected automatically, follow this <a href="https://gaestehaus22.github.io/ledger/">link to the ledger</a>.</p>
+
+    <div class="crypto-box">
+        <h2>🔒 Private Access</h2>
+        <p style="color: #666; font-size: 14px;">Please enter the password to access the ledger.</p>
+        
+        <!-- Password Form -->
+        <input type="password" id="passInput" placeholder="Password" onkeydown="if(event.key === 'Enter') verify()">
+        <button onclick="verify()">Unlock</button>
+        <p id="errorMsg" class="error">Incorrect password. Access denied.</p>
+    </div>
+
+    <script>
+        function verify() {
+            const input = document.getElementById("passInput").value;
+            const error = document.getElementById("errorMsg");
+
+            // REPLACE THIS WITH YOUR OWN PASSWORD
+            const secretPassword = "1234"; 
+
+            if (input === secretPassword) {
+                error.style.display = "none";
+                // Your secure redirect code
+                window.location.replace("https://gaestehaus22.github.io/ledger/");
+            } else {
+                error.style.display = "block";
+                document.getElementById("passInput").value = ""; // Clear input
+            }
+        }
+    </script>
+
 </body>
 </html>
