@@ -328,6 +328,15 @@
             background: #962d22;
         }
 
+        .saved-invoice-item .cloud-badge {
+            background: #2980b9;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 6px;
+        }
+
         .no-saved {
             color: #999;
             text-align: center;
@@ -772,6 +781,9 @@
             <div id="savedInvoicesList">
                 <div class="no-saved">Keine gespeicherten Rechnungen gefunden.</div>
             </div>
+            <div style="margin-top: 15px; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 10px;">
+                <span id="storageStatus">💾 Lokaler Speicher</span>
+            </div>
         </div>
     </div>
 
@@ -918,16 +930,13 @@
         }
 
         // ============================================================
-        // 2. INVOICE NUMBER GENERATOR (FIXED - no auto-increment on load)
+        // 2. INVOICE NUMBER GENERATOR (FIXED)
         // ============================================================
-        
-        // Get the current counter value WITHOUT incrementing
         function getCurrentCounter(year, month) {
             const counterKey = `invoice_counter_${year}_${month}`;
             return parseInt(localStorage.getItem(counterKey) || '0');
         }
 
-        // Get the next counter value AND increment it
         function getAndIncrementCounter(year, month) {
             const counterKey = `invoice_counter_${year}_${month}`;
             let counter = parseInt(localStorage.getItem(counterKey) || '0');
@@ -936,14 +945,12 @@
             return counter;
         }
 
-        // Format invoice number from counter
         function formatInvoiceNumber(year, month, counter) {
             const monthStr = String(month).padStart(2, '0');
             const counterStr = String(counter).padStart(2, '0');
             return `RE-${year}-${monthStr}-${counterStr}`;
         }
 
-        // Generate a NEW invoice number (increments counter)
         function generateNewInvoiceNumber(date) {
             if (!date) date = new Date();
             if (typeof date === 'string') date = new Date(date);
@@ -955,7 +962,6 @@
             return formatInvoiceNumber(year, month, counter);
         }
 
-        // Get the CURRENT invoice number (without incrementing)
         function getCurrentInvoiceNumber(date) {
             if (!date) date = new Date();
             if (typeof date === 'string') date = new Date(date);
@@ -965,7 +971,6 @@
             
             let counter = getCurrentCounter(year, month);
             
-            // If counter is 0, generate the first one (this WILL increment)
             if (counter === 0) {
                 return generateNewInvoiceNumber(date);
             }
@@ -984,7 +989,6 @@
                 const month = date.getMonth() + 1;
                 const expectedPrefix = `RE-${year}-${String(month).padStart(2, '0')}`;
                 
-                // If the number doesn't match the current month/year, generate new one
                 if (!currentNumber.startsWith(expectedPrefix)) {
                     const newNumber = generateNewInvoiceNumber(date);
                     invoiceInput.value = newNumber;
@@ -993,26 +997,21 @@
             }
         }
 
-        // Initialize invoice number on page load
         function initializeInvoiceNumber() {
             const dateInput = document.getElementById('rechnungs-datum');
             const invoiceInput = document.getElementById('rechnungs-nr');
             
-            // Set default date to today if empty
             if (!dateInput.value) {
                 dateInput.valueAsDate = new Date();
             }
             
-            // Get current number (will create first one if needed)
             const currentNumber = getCurrentInvoiceNumber(dateInput.value);
             invoiceInput.value = currentNumber;
         }
 
-        // Manual override: Allow user to edit if they really want to
         document.addEventListener('DOMContentLoaded', function() {
             const invoiceInput = document.getElementById('rechnungs-nr');
             
-            // Double-click to enable editing
             invoiceInput.addEventListener('dblclick', function() {
                 this.readOnly = false;
                 this.style.background = '#fff';
@@ -1021,18 +1020,15 @@
                 showToast('Rechnungsnummer kann jetzt bearbeitet werden', 'info', 2000);
             });
             
-            // When leaving the field, make it readonly again
             invoiceInput.addEventListener('blur', function() {
                 this.readOnly = true;
                 this.style.background = '#f0f0f0';
                 this.style.cursor = 'default';
             });
-            
-            console.log('💡 Tipp: Doppelklick auf Rechnungs-Nr zum Bearbeiten');
         });
 
         // ============================================================
-        // 3. DATA COLLECTION (for save/load)
+        // 3. DATA COLLECTION
         // ============================================================
         function collectInvoiceData() {
             const rows = document.querySelectorAll('#invoice-items tr');
@@ -1109,7 +1105,7 @@
         }
 
         // ============================================================
-        // 4. SAVE FUNCTION
+        // 4. LOCAL SAVE / LOAD FUNCTIONS
         // ============================================================
         function saveInvoice() {
             const data = collectInvoiceData();
@@ -1126,11 +1122,11 @@
             localStorage.setItem('gaestehaus22_last_invoice', id);
             
             showToast(`Rechnung "${displayName}" gespeichert!`, 'success', 2500);
+            
+            // Update storage status
+            updateStorageStatus();
         }
 
-        // ============================================================
-        // 5. LOAD FUNCTION
-        // ============================================================
         function loadInvoice(id) {
             const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
             const data = saves[id];
@@ -1172,6 +1168,7 @@
                 });
             }
             
+            updateStorageStatus();
             modal.classList.add('active');
         }
 
@@ -1189,6 +1186,50 @@
             
             openLoadModal();
             showToast('Rechnung gelöscht', 'info', 2000);
+        }
+
+        function updateStorageStatus() {
+            const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
+            const count = Object.keys(saves).length;
+            const statusEl = document.getElementById('storageStatus');
+            if (statusEl) {
+                statusEl.textContent = `💾 Lokaler Speicher: ${count} Rechnung(en) gespeichert`;
+            }
+        }
+
+        // ============================================================
+        // 5. CLOUDFLARE WORKER INTEGRATION (optional)
+        // ============================================================
+        // Set this to false if you don't have a worker deployed yet
+        const CLOUD_SYNC_ENABLED = false; // <-- SET TO true WHEN WORKER IS READY
+        
+        // Your Cloudflare Worker URL
+        const WORKER_URL = 'https://your-worker.workers.dev'; // <-- REPLACE WITH YOUR URL
+        const ADMIN_PASSWORD = 'your-password'; // <-- REPLACE WITH YOUR PASSWORD
+
+        // Optional: Cloud backup function (only if enabled)
+        function backupToCloud(data) {
+            if (!CLOUD_SYNC_ENABLED) return;
+            
+            fetch(WORKER_URL + '/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + ADMIN_PASSWORD
+                },
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    console.log('☁️ Cloud backup successful');
+                } else {
+                    console.warn('☁️ Cloud backup failed:', result);
+                }
+            })
+            .catch(err => {
+                console.warn('☁️ Cloud backup error:', err);
+            });
         }
 
         // ============================================================
@@ -1234,7 +1275,6 @@
             document.getElementById('toggle-persons').checked = true;
             document.getElementById('toggle-tax').checked = true;
             
-            // Generate NEW number (this will increment the counter)
             const newNumber = generateNewInvoiceNumber(new Date());
             document.getElementById('rechnungs-nr').value = newNumber;
             togglePersons();
@@ -1328,6 +1368,10 @@
             initializeInvoiceNumber();
             togglePersons();
             calculateTotals();
+            updateStorageStatus();
+            
+            console.log('💾 Gästehaus 22 Rechnungsgenerator');
+            console.log('☁️ Cloud Sync:', CLOUD_SYNC_ENABLED ? 'ENABLED' : 'DISABLED');
         });
 
         // Service Worker
@@ -1362,16 +1406,18 @@
         console.log('  Ctrl+Shift+Delete → Alles zurücksetzen');
         console.log('  Doppelklick auf Rechnungs-Nr → Bearbeiten');
         
-        // Debug info
-        console.log('📊 Aktuelle Zählerstände:');
+        // Show counter status
         const now = new Date();
         const year = now.getFullYear();
+        let totalInvoices = 0;
         for (let m = 1; m <= 12; m++) {
             const counter = getCurrentCounter(year, m);
             if (counter > 0) {
                 console.log(`  ${year}-${String(m).padStart(2, '0')}: ${counter} Rechnungen`);
+                totalInvoices += counter;
             }
         }
+        console.log(`📊 Gesamt: ${totalInvoices} Rechnungen im Jahr ${year}`);
     </script>
 </body>
 </html>
