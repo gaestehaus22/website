@@ -1073,4 +1073,287 @@
                         tr.innerHTML = `
                             <td data-label="Beschreibung"><input type="text" class="table-input" value="${escapeHtml(item.description || '')}"></td>
                             <td data-label="Menge / Nächte"><input type="number" class="table-input qty" value="${item.quantity || 0}" oninput="calculateTotals()"></td>
-                            <td data-label="Einzelpreis (€)"><input type="number" class="table-input price" value="${(item.price || 
+                            <td data-label="Einzelpreis (€)"><input type="number" class="table-input price" value="${(item.price || 0).toFixed(2)}" step="0.01" oninput="calculateTotals()"></td>
+                            <td data-label="Gesamt (€)" class="col-total item-total">0.00</td>
+                            <td class="col-action"><button class="btn btn-danger" onclick="deleteRow(this)">X</button></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    addRow();
+                }
+                
+                calculateTotals();
+                showToast('Rechnung erfolgreich geladen!', 'success', 2000);
+            } catch (e) {
+                console.error('Load error:', e);
+                showToast('Fehler beim Laden der Rechnung', 'error', 3000);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============================================================
+        // 4. SAVE FUNCTION
+        // ============================================================
+        function saveInvoice() {
+            const data = collectInvoiceData();
+            
+            const id = 'inv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+            data.id = id;
+            
+            const displayName = data.invoice.invoiceNumber || 'Rechnung ohne Nummer';
+            data.displayName = displayName;
+            
+            let saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
+            saves[id] = data;
+            localStorage.setItem('gaestehaus22_invoices', JSON.stringify(saves));
+            localStorage.setItem('gaestehaus22_last_invoice', id);
+            
+            showToast(`Rechnung "${displayName}" gespeichert!`, 'success', 2500);
+            
+            if (window.cloudflareWorkerEnabled) {
+                saveToCloudflare(data);
+            }
+        }
+
+        // ============================================================
+        // 5. LOAD FUNCTION
+        // ============================================================
+        function loadInvoice(id) {
+            const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
+            const data = saves[id];
+            if (data) {
+                loadInvoiceData(data);
+                closeLoadModal();
+            } else {
+                showToast('Rechnung nicht gefunden', 'error', 2000);
+            }
+        }
+
+        function openLoadModal() {
+            const modal = document.getElementById('loadModal');
+            const list = document.getElementById('savedInvoicesList');
+            
+            const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
+            const keys = Object.keys(saves);
+            
+            if (keys.length === 0) {
+                list.innerHTML = '<div class="no-saved">Keine gespeicherten Rechnungen gefunden.</div>';
+            } else {
+                list.innerHTML = '';
+                keys.reverse().forEach(key => {
+                    const data = saves[key];
+                    const div = document.createElement('div');
+                    div.className = 'saved-invoice-item';
+                    
+                    const date = data.savedAt ? new Date(data.savedAt).toLocaleDateString('de-DE') : 'Unbekannt';
+                    const time = data.savedAt ? new Date(data.savedAt).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}) : '';
+                    
+                    div.innerHTML = `
+                        <div class="invoice-meta" onclick="loadInvoice('${key}')">
+                            <strong>${escapeHtml(data.displayName || 'Rechnung')}</strong>
+                            <span>${date} ${time} • ${data.invoice.items?.length || 0} Positionen</span>
+                        </div>
+                        <button class="delete-saved" onclick="deleteSavedInvoice('${key}', event)">🗑️</button>
+                    `;
+                    list.appendChild(div);
+                });
+            }
+            
+            modal.classList.add('active');
+        }
+
+        function closeLoadModal() {
+            document.getElementById('loadModal').classList.remove('active');
+        }
+
+        function deleteSavedInvoice(id, event) {
+            event.stopPropagation();
+            if (!confirm('Diese gespeicherte Rechnung löschen?')) return;
+            
+            const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
+            delete saves[id];
+            localStorage.setItem('gaestehaus22_invoices', JSON.stringify(saves));
+            
+            openLoadModal(); // Refresh list
+            showToast('Rechnung gelöscht', 'info', 2000);
+        }
+
+        // ============================================================
+        // 6. CORE FUNCTIONS
+        // ============================================================
+        function forceReload() {
+            showToast('Leere Cache und lade Seite neu...', 'info', 2000);
+            
+            if ('caches' in window) {
+                caches.keys().then(keys => {
+                    keys.forEach(key => caches.delete(key));
+                }).then(() => {
+                    if ('serviceWorker' in navigator) {
+                        navigator.serviceWorker.getRegistrations().then(registrations => {
+                            registrations.forEach(reg => reg.unregister());
+                        });
+                    }
+                    
+                    setTimeout(() => {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('_nocache', Date.now());
+                        window.location.href = url.toString();
+                    }, 500);
+                }).catch(() => {
+                    window.location.reload(true);
+                });
+            } else {
+                window.location.reload(true);
+            }
+        }
+
+        function hardReset() {
+            if (!confirm('Möchten Sie wirklich alle Felder zurücksetzen? Diese Aktion kann nicht rückgängig gemacht werden!')) {
+                return;
+            }
+
+            showToast('Setze alle Felder zurück...', 'info', 1500);
+
+            document.getElementById('kunde-adresse').value = '';
+            document.getElementById('rechnungs-datum').valueAsDate = new Date();
+            document.getElementById('leistungszeitraum').value = '';
+            document.getElementById('anzahl-personen').value = '1';
+            document.getElementById('toggle-persons').checked = true;
+            document.getElementById('toggle-tax').checked = true;
+            
+            // Reset invoice number
+            const newNumber = getNextInvoiceNumber(new Date());
+            document.getElementById('rechnungs-nr').value = newNumber;
+            togglePersons();
+            
+            const tbody = document.getElementById('invoice-items');
+            tbody.innerHTML = '';
+            const defaultRow = document.createElement('tr');
+            defaultRow.innerHTML = `
+                <td data-label="Beschreibung"><input type="text" class="table-input" value="Nächtigung Monteurzimmer"></td>
+                <td data-label="Menge / Nächte"><input type="number" class="table-input qty" value="1" oninput="calculateTotals()"></td>
+                <td data-label="Einzelpreis (€)"><input type="number" class="table-input price" value="0.00" step="0.01" oninput="calculateTotals()"></td>
+                <td data-label="Gesamt (€)" class="col-total item-total">0.00</td>
+                <td class="col-action"><button class="btn btn-danger" onclick="deleteRow(this)">X</button></td>
+            `;
+            tbody.appendChild(defaultRow);
+            
+            calculateTotals();
+            showToast('Alle Felder wurden zurückgesetzt!', 'success', 2000);
+        }
+
+        function togglePersons() {
+            const checkbox = document.getElementById('toggle-persons');
+            const input = document.getElementById('anzahl-personen');
+            if (checkbox.checked) {
+                input.classList.remove('disabled-field');
+                input.disabled = false;
+            } else {
+                input.classList.add('disabled-field');
+                input.disabled = true;
+            }
+            calculateTotals();
+        }
+
+        function addRow() {
+            const tbody = document.getElementById('invoice-items');
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td data-label="Beschreibung"><input type="text" class="table-input" placeholder="z.B. Endreinigung oder Nächtigung"></td>
+                <td data-label="Menge / Nächte"><input type="number" class="table-input qty" value="1" oninput="calculateTotals()"></td>
+                <td data-label="Einzelpreis (€)"><input type="number" class="table-input price" value="0.00" step="0.01" oninput="calculateTotals()"></td>
+                <td data-label="Gesamt (€)" class="col-total item-total">0.00</td>
+                <td class="col-action"><button class="btn btn-danger" onclick="deleteRow(this)">X</button></td>
+            `;
+            tbody.appendChild(tr);
+            calculateTotals();
+        }
+
+        function deleteRow(button) {
+            const row = button.closest('tr');
+            row.remove();
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            const rows = document.querySelectorAll('#invoice-items tr');
+            let nettoGesamt = 0;
+            
+            const personsEnabled = document.getElementById('toggle-persons').checked;
+            const personsCount = parseInt(document.getElementById('anzahl-personen').value) || 1;
+            const personMultiplier = personsEnabled ? personsCount : 1;
+            
+            rows.forEach(row => {
+                const qty = parseFloat(row.querySelector('.qty').value) || 0;
+                const price = parseFloat(row.querySelector('.price').value) || 0;
+                const total = qty * price * personMultiplier;
+                row.querySelector('.item-total').textContent = total.toFixed(2);
+                nettoGesamt += total;
+            });
+            
+            const showTax = document.getElementById('toggle-tax').checked;
+            const ustSatz = 0.10; 
+            const ustBetrag = nettoGesamt * ustSatz;
+            const bruttoGesamt = showTax ? nettoGesamt + ustBetrag : nettoGesamt;
+            
+            document.getElementById('netto-gesamt').textContent = nettoGesamt.toFixed(2) + " €";
+            document.getElementById('ust-betrag').textContent = ustBetrag.toFixed(2) + " €";
+            document.getElementById('brutto-gesamt').textContent = bruttoGesamt.toFixed(2) + " €";
+            
+            const taxRow = document.getElementById('tax-row');
+            if (showTax) {
+                taxRow.classList.remove('hidden');
+            } else {
+                taxRow.classList.add('hidden');
+            }
+        }
+
+        // ============================================================
+        // 7. INITIALIZATION
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeInvoiceNumber();
+            togglePersons();
+            calculateTotals();
+        });
+
+        // Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (!urlParams.has('_nocache')) {
+                    navigator.serviceWorker.register('./sw.js')
+                        .then(reg => {
+                            console.log('Service Worker registriert', reg);
+                            reg.update();
+                        })
+                        .catch(err => console.error('Service Worker Fehler', err));
+                }
+            });
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+                e.preventDefault();
+                forceReload();
+            }
+            if (e.ctrlKey && e.shiftKey && e.key === 'Delete') {
+                e.preventDefault();
+                hardReset();
+            }
+        });
+
+        console.log('💡 Tastenkürzel:');
+        console.log('  Ctrl+Shift+R  → Seite neu laden (Cache leeren)');
+        console.log('  Ctrl+Shift+Delete → Alles zurücksetzen');
+        console.log('  Doppelklick auf Rechnungs-Nr → Bearbeiten');
+    </script>
+</body>
+</html>
