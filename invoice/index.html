@@ -1098,9 +1098,9 @@
         }
 
         // ============================================================
-        // 4. SAVE FUNCTION
+        // 4. SAVE FUNCTION (local only – will be overridden by cloud sync)
         // ============================================================
-        function saveInvoice() {
+        function saveInvoiceLocal() {
             const data = collectInvoiceData();
             
             const id = 'inv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
@@ -1114,15 +1114,12 @@
             localStorage.setItem('gaestehaus22_invoices', JSON.stringify(saves));
             localStorage.setItem('gaestehaus22_last_invoice', id);
             
-            showToast(`Rechnung "${displayName}" gespeichert!`, 'success', 2500);
-            
-            if (window.cloudflareWorkerEnabled) {
-                saveToCloudflare(data);
-            }
+            showToast(`Rechnung "${displayName}" lokal gespeichert!`, 'success', 2500);
+            return { id, data };
         }
 
         // ============================================================
-        // 5. LOAD FUNCTION
+        // 5. LOAD FUNCTION (local)
         // ============================================================
         function loadInvoice(id) {
             const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
@@ -1135,57 +1132,187 @@
             }
         }
 
-        function openLoadModal() {
+        // ============================================================
+        // 6. CLOUDFLARE WORKER INTEGRATION
+        // ============================================================
+        // ----- Configuration -----
+        const WORKER_URL = 'https://invoice-api.eichestrasse22.workers.dev';
+        const ADMIN_PASSWORD = '07111977'; // <-- CHANGE THIS to your actual password
+
+        // Enable cloud sync
+        window.cloudflareWorkerEnabled = true;
+
+        // ----- Override saveInvoice to also save to cloud -----
+        const originalSave = window.saveInvoice;
+        window.saveInvoice = function() {
+            // 1. Local save
+            const { id, data } = saveInvoiceLocal();
+
+            // 2. Cloud save (only if we have a password set)
+            if (ADMIN_PASSWORD && ADMIN_PASSWORD !== 'your-admin-password') {
+                fetch(WORKER_URL + '/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + ADMIN_PASSWORD
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.success) {
+                        console.log('Cloud backup successful');
+                        showToast('☁️ Rechnung in der Cloud gesichert', 'success', 2000);
+                    } else {
+                        console.error('Cloud save failed:', result);
+                        showToast('Cloud-Sicherung fehlgeschlagen', 'error', 3000);
+                    }
+                })
+                .catch(err => {
+                    console.error('Cloud save error:', err);
+                    showToast('Fehler bei Cloud-Sicherung', 'error', 3000);
+                });
+            } else {
+                console.warn('Cloud backup skipped – ADMIN_PASSWORD not set or default');
+            }
+        };
+
+        // ----- Override openLoadModal to show local + cloud -----
+        const originalLoadModal = window.openLoadModal;
+        window.openLoadModal = async function() {
             const modal = document.getElementById('loadModal');
             const list = document.getElementById('savedInvoicesList');
-            
-            const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
-            const keys = Object.keys(saves);
-            
+
+            // Local invoices
+            let localSaves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
+            let localKeys = Object.keys(localSaves);
+
+            // Cloud invoices (only if password is set)
+            let cloudItems = [];
+            if (ADMIN_PASSWORD && ADMIN_PASSWORD !== 'your-admin-password') {
+                try {
+                    const res = await fetch(WORKER_URL + '/list', {
+                        headers: { 'Authorization': 'Bearer ' + ADMIN_PASSWORD }
+                    });
+                    if (res.ok) cloudItems = await res.json();
+                } catch (e) {
+                    console.warn('Could not fetch cloud invoices', e);
+                }
+            }
+
+            // Merge: local first, cloud overrides only if id not exists
+            const allItems = {};
+            localKeys.forEach(key => {
+                const data = localSaves[key];
+                allItems[key] = {
+                    id: key,
+                    displayName: data.displayName || data.invoice?.invoiceNumber || 'Lokal',
+                    savedAt: data.savedAt || new Date().toISOString(),
+                    source: 'local'
+                };
+            });
+            cloudItems.forEach(item => {
+                if (!allItems[item.id]) {
+                    allItems[item.id] = { ...item, source: 'cloud' };
+                } else {
+                    // Mark as also in cloud
+                    allItems[item.id].cloud = true;
+                }
+            });
+
+            const keys = Object.keys(allItems).sort((a,b) => new Date(allItems[b].savedAt) - new Date(allItems[a].savedAt));
+
             if (keys.length === 0) {
                 list.innerHTML = '<div class="no-saved">Keine gespeicherten Rechnungen gefunden.</div>';
             } else {
                 list.innerHTML = '';
-                keys.reverse().forEach(key => {
-                    const data = saves[key];
+                keys.forEach(key => {
+                    const item = allItems[key];
                     const div = document.createElement('div');
                     div.className = 'saved-invoice-item';
-                    
-                    const date = data.savedAt ? new Date(data.savedAt).toLocaleDateString('de-DE') : 'Unbekannt';
-                    const time = data.savedAt ? new Date(data.savedAt).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}) : '';
-                    
+                    const date = item.savedAt ? new Date(item.savedAt).toLocaleDateString('de-DE') : 'Unbekannt';
+                    const time = item.savedAt ? new Date(item.savedAt).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}) : '';
+                    const sourceLabel = item.source === 'cloud' ? '☁️' : '💾';
+                    const cloudBadge = item.cloud ? ' ☁️' : '';
                     div.innerHTML = `
-                        <div class="invoice-meta" onclick="loadInvoice('${key}')">
-                            <strong>${escapeHtml(data.displayName || 'Rechnung')}</strong>
-                            <span>${date} ${time} • ${data.invoice.items?.length || 0} Positionen</span>
+                        <div class="invoice-meta" onclick="loadInvoiceFromSource('${key}', '${item.source}')">
+                            <strong>${escapeHtml(item.displayName)} ${sourceLabel}${cloudBadge}</strong>
+                            <span>${date} ${time}</span>
                         </div>
-                        <button class="delete-saved" onclick="deleteSavedInvoice('${key}', event)">🗑️</button>
+                        <button class="delete-saved" onclick="deleteInvoiceFromSource('${key}', '${item.source}', event)">🗑️</button>
                     `;
                     list.appendChild(div);
                 });
             }
-            
+
+            // Define load/delete functions globally
+            window.loadInvoiceFromSource = function(id, source) {
+                if (source === 'local') {
+                    loadInvoice(id);
+                } else {
+                    if (!ADMIN_PASSWORD || ADMIN_PASSWORD === 'your-admin-password') {
+                        showToast('Cloud-Passwort nicht konfiguriert', 'error', 3000);
+                        return;
+                    }
+                    fetch(WORKER_URL + '/load?id=' + encodeURIComponent(id), {
+                        headers: { 'Authorization': 'Bearer ' + ADMIN_PASSWORD }
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        loadInvoiceData(data);
+                        closeLoadModal();
+                    })
+                    .catch(err => {
+                        showToast('Fehler beim Laden aus Cloud', 'error', 3000);
+                        console.error(err);
+                    });
+                }
+            };
+
+            window.deleteInvoiceFromSource = function(id, source, event) {
+                event.stopPropagation();
+                if (!confirm('Diese Rechnung löschen?')) return;
+                if (source === 'local') {
+                    // Use existing local delete
+                    const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
+                    delete saves[id];
+                    localStorage.setItem('gaestehaus22_invoices', JSON.stringify(saves));
+                    showToast('Lokale Rechnung gelöscht', 'info', 2000);
+                    openLoadModal(); // refresh
+                } else {
+                    if (!ADMIN_PASSWORD || ADMIN_PASSWORD === 'your-admin-password') {
+                        showToast('Cloud-Passwort nicht konfiguriert', 'error', 3000);
+                        return;
+                    }
+                    fetch(WORKER_URL + '/delete?id=' + encodeURIComponent(id), {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + ADMIN_PASSWORD }
+                    })
+                    .then(res => res.json())
+                    .then(result => {
+                        if (result.success) {
+                            showToast('Cloud-Rechnung gelöscht', 'info', 2000);
+                            openLoadModal(); // refresh
+                        } else {
+                            showToast('Löschen fehlgeschlagen', 'error', 2000);
+                        }
+                    })
+                    .catch(err => {
+                        showToast('Fehler beim Löschen', 'error', 2000);
+                    });
+                }
+            };
+
             modal.classList.add('active');
-        }
+        };
 
-        function closeLoadModal() {
-            document.getElementById('loadModal').classList.remove('active');
-        }
+        // Also keep the original deleteSavedInvoice for local use (already defined)
+        // but we override it inside the modal as needed.
 
-        function deleteSavedInvoice(id, event) {
-            event.stopPropagation();
-            if (!confirm('Diese gespeicherte Rechnung löschen?')) return;
-            
-            const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
-            delete saves[id];
-            localStorage.setItem('gaestehaus22_invoices', JSON.stringify(saves));
-            
-            openLoadModal(); // Refresh list
-            showToast('Rechnung gelöscht', 'info', 2000);
-        }
+        console.log('☁️ Cloudflare integration active');
 
         // ============================================================
-        // 6. CORE FUNCTIONS
+        // 7. CORE FUNCTIONS (unchanged)
         // ============================================================
         function forceReload() {
             showToast('Leere Cache und lade Seite neu...', 'info', 2000);
@@ -1315,7 +1442,7 @@
         }
 
         // ============================================================
-        // 7. INITIALIZATION
+        // 8. INITIALIZATION
         // ============================================================
         document.addEventListener('DOMContentLoaded', function() {
             initializeInvoiceNumber();
