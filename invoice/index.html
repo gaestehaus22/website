@@ -74,6 +74,27 @@
             background-color: #962d22;
         }
 
+        .btn-success {
+            background-color: #27ae60;
+        }
+        .btn-success:hover {
+            background-color: #1e8449;
+        }
+
+        .btn-primary {
+            background-color: #2980b9;
+        }
+        .btn-primary:hover {
+            background-color: #1f618d;
+        }
+
+        .btn-purple {
+            background-color: #8e44ad;
+        }
+        .btn-purple:hover {
+            background-color: #6c3483;
+        }
+
         .header {
             display: flex;
             flex-direction: column;
@@ -128,7 +149,7 @@
             font-weight: 600;
         }
 
-        .input-group input, .input-group textarea {
+        .input-group input, .input-group textarea, .input-group select {
             width: 100%;
             padding: 8px;
             border: 1px solid #ccc;
@@ -216,6 +237,101 @@
 
         .toast.info {
             background-color: #2980b9;
+        }
+
+        /* Modal for load */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .modal h2 {
+            margin-top: 0;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 10px;
+        }
+
+        .modal .close-btn {
+            float: right;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal .close-btn:hover {
+            color: #333;
+        }
+
+        .saved-invoice-item {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .saved-invoice-item:hover {
+            background: #f0f0f0;
+        }
+
+        .saved-invoice-item .invoice-meta {
+            font-size: 13px;
+        }
+
+        .saved-invoice-item .invoice-meta strong {
+            display: block;
+            font-size: 14px;
+            color: var(--primary-color);
+        }
+
+        .saved-invoice-item .delete-saved {
+            background: #c0392b;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .saved-invoice-item .delete-saved:hover {
+            background: #962d22;
+        }
+
+        .no-saved {
+            color: #999;
+            text-align: center;
+            padding: 20px;
         }
 
         /* --- Responsive Tabellen-Design --- */
@@ -376,7 +492,7 @@
             .col-total { width: 15%; text-align: right !important; }
         }
 
-        /* --- PRINT-ANSICHT - Komplett überarbeitet --- */
+        /* --- PRINT-ANSICHT --- */
         @media print {
             body { 
                 background: #fff; 
@@ -396,7 +512,6 @@
                 display: none !important; 
             }
             
-            /* Header - für Print optimiert */
             .header {
                 display: flex !important;
                 flex-direction: row !important;
@@ -418,7 +533,6 @@
                 line-height: 1.4 !important;
             }
             
-            /* Invoice Details - Grid für Print */
             .invoice-details {
                 display: grid !important;
                 grid-template-columns: 1fr 1fr !important;
@@ -496,7 +610,6 @@
                 opacity: 0.5 !important;
             }
             
-            /* Tabelle für Print - als echte Tabelle */
             table { 
                 display: table !important; 
                 width: 100% !important; 
@@ -572,7 +685,6 @@
                 text-align: inherit !important;
             }
             
-            /* Totals Bereich für Print */
             .totals-area {
                 display: flex !important;
                 justify-content: flex-end !important;
@@ -617,7 +729,6 @@
                 display: none !important;
             }
             
-            /* Footer für Print */
             .footer {
                 border-top: 1px solid #ddd !important;
                 padding-top: 15px !important;
@@ -627,7 +738,6 @@
                 line-height: 1.4 !important;
             }
             
-            /* Verstecke alle Checkboxen und Buttons im Print */
             input[type="checkbox"] {
                 -webkit-appearance: none !important;
                 appearance: none !important;
@@ -654,12 +764,25 @@
     <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
 
+    <!-- Load Modal -->
+    <div class="modal-overlay" id="loadModal">
+        <div class="modal">
+            <button class="close-btn" onclick="closeLoadModal()">×</button>
+            <h2>📂 Gespeicherte Rechnungen</h2>
+            <div id="savedInvoicesList">
+                <div class="no-saved">Keine gespeicherten Rechnungen gefunden.</div>
+            </div>
+        </div>
+    </div>
+
     <div class="container action-bar">
         <div>
             <strong>Rechnungs-Tool</strong> | gästehaus22.at
         </div>
         <div class="btn-group">
             <button class="btn" onclick="window.print()">Rechnung drucken / als PDF speichern</button>
+            <button class="btn btn-success" onclick="saveInvoice()">💾 Rechnung speichern</button>
+            <button class="btn btn-primary" onclick="openLoadModal()">📂 Rechnung laden</button>
             <button class="btn btn-warning" onclick="forceReload()">🔄 Seite neu laden (Cache leeren)</button>
             <button class="btn btn-danger-action" onclick="hardReset()">🗑️ Alles zurücksetzen</button>
         </div>
@@ -691,11 +814,12 @@
                 <h3>Rechnungsdaten</h3>
                 <div class="input-group">
                     <label>Rechnungs-Nr:</label>
-                    <input type="text" id="rechnungs-nr" value="RE-2026-">
+                    <input type="text" id="rechnungs-nr" readonly style="background: #f0f0f0; cursor: default;">
+                    <span style="font-size: 12px; color: #666; margin-top: 2px;">Automatisch generiert (kann manuell geändert werden)</span>
                 </div>
                 <div class="input-group">
                     <label>Rechnungsdatum:</label>
-                    <input type="date" id="rechnungs-datum">
+                    <input type="date" id="rechnungs-datum" onchange="updateInvoiceNumber()">
                 </div>
                 <div class="input-group">
                     <label>Leistungszeitraum:</label>
@@ -774,7 +898,9 @@
     </div>
 
     <script>
-        // Toast notification system
+        // ============================================================
+        // 1. TOAST NOTIFICATION
+        // ============================================================
         function showToast(message, type = 'info', duration = 3000) {
             const toast = document.getElementById('toast');
             toast.textContent = message;
@@ -791,182 +917,160 @@
             }, duration);
         }
 
-        // Force Reload
-        function forceReload() {
-            showToast('Leere Cache und lade Seite neu...', 'info', 2000);
+        // ============================================================
+        // 2. INVOICE NUMBER GENERATOR (with memory)
+        // ============================================================
+        function getNextInvoiceNumber(date) {
+            if (!date) date = new Date();
+            if (typeof date === 'string') date = new Date(date);
             
-            if ('caches' in window) {
-                caches.keys().then(keys => {
-                    keys.forEach(key => {
-                        caches.delete(key);
-                    });
-                }).then(() => {
-                    if ('serviceWorker' in navigator) {
-                        navigator.serviceWorker.getRegistrations().then(registrations => {
-                            registrations.forEach(reg => {
-                                reg.unregister();
-                                console.log('Service Worker unregistered');
-                            });
-                        });
-                    }
-                    
-                    setTimeout(() => {
-                        const url = new URL(window.location.href);
-                        url.searchParams.set('_nocache', Date.now());
-                        window.location.href = url.toString();
-                    }, 500);
-                }).catch(err => {
-                    console.error('Cache clearing error:', err);
-                    window.location.reload(true);
-                });
-            } else {
-                window.location.reload(true);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            
+            // Get counter from localStorage
+            const counterKey = `invoice_counter_${year}_${month}`;
+            let counter = parseInt(localStorage.getItem(counterKey) || '0');
+            
+            // Increment counter
+            counter++;
+            localStorage.setItem(counterKey, String(counter));
+            
+            // Format: RE-2026-07-01
+            const counterStr = String(counter).padStart(2, '0');
+            return `RE-${year}-${month}-${counterStr}`;
+        }
+
+        function getCurrentInvoiceNumber(date) {
+            if (!date) date = new Date();
+            if (typeof date === 'string') date = new Date(date);
+            
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            
+            const counterKey = `invoice_counter_${year}_${month}`;
+            let counter = parseInt(localStorage.getItem(counterKey) || '0');
+            
+            if (counter === 0) {
+                return getNextInvoiceNumber(date);
             }
+            
+            const counterStr = String(counter).padStart(2, '0');
+            return `RE-${year}-${month}-${counterStr}`;
         }
 
-        // Hard Reset
-        function hardReset() {
-            if (!confirm('Möchten Sie wirklich alle Felder zurücksetzen? Diese Aktion kann nicht rückgängig gemacht werden!')) {
-                return;
-            }
-
-            showToast('Setze alle Felder zurück...', 'info', 1500);
-
-            document.getElementById('kunde-adresse').value = '';
-            document.getElementById('rechnungs-nr').value = 'RE-2026-';
-            document.getElementById('rechnungs-datum').valueAsDate = new Date();
-            document.getElementById('leistungszeitraum').value = '';
-            document.getElementById('anzahl-personen').value = '1';
-            const togglePersonsCheckbox = document.getElementById('toggle-persons');
-            togglePersonsCheckbox.checked = true;
-            togglePersons();
-            document.getElementById('toggle-tax').checked = true;
+        function updateInvoiceNumber() {
+            const dateInput = document.getElementById('rechnungs-datum');
+            const invoiceInput = document.getElementById('rechnungs-nr');
             
-            const tbody = document.getElementById('invoice-items');
-            tbody.innerHTML = '';
-            const defaultRow = document.createElement('tr');
-            defaultRow.innerHTML = `
-                <td data-label="Beschreibung"><input type="text" class="table-input" value="Nächtigung Monteurzimmer"></td>
-                <td data-label="Menge / Nächte"><input type="number" class="table-input qty" value="1" oninput="calculateTotals()"></td>
-                <td data-label="Einzelpreis (€)"><input type="number" class="table-input price" value="0.00" step="0.01" oninput="calculateTotals()"></td>
-                <td data-label="Gesamt (€)" class="col-total item-total">0.00</td>
-                <td class="col-action"><button class="btn btn-danger" onclick="deleteRow(this)">X</button></td>
-            `;
-            tbody.appendChild(defaultRow);
-            
-            calculateTotals();
-            showToast('Alle Felder wurden zurückgesetzt!', 'success', 2000);
-        }
-
-        // Initialize date
-        document.getElementById('rechnungs-datum').valueAsDate = new Date();
-
-        function togglePersons() {
-            const checkbox = document.getElementById('toggle-persons');
-            const input = document.getElementById('anzahl-personen');
-            if (checkbox.checked) {
-                input.classList.remove('disabled-field');
-                input.disabled = false;
-            } else {
-                input.classList.add('disabled-field');
-                input.disabled = true;
-            }
-            calculateTotals();
-        }
-
-        togglePersons();
-
-        function addRow() {
-            const tbody = document.getElementById('invoice-items');
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td data-label="Beschreibung"><input type="text" class="table-input" placeholder="z.B. Endreinigung oder Nächtigung"></td>
-                <td data-label="Menge / Nächte"><input type="number" class="table-input qty" value="1" oninput="calculateTotals()"></td>
-                <td data-label="Einzelpreis (€)"><input type="number" class="table-input price" value="0.00" step="0.01" oninput="calculateTotals()"></td>
-                <td data-label="Gesamt (€)" class="col-total item-total">0.00</td>
-                <td class="col-action"><button class="btn btn-danger" onclick="deleteRow(this)">X</button></td>
-            `;
-            tbody.appendChild(tr);
-            calculateTotals();
-        }
-
-        function deleteRow(button) {
-            const row = button.closest('tr');
-            row.remove();
-            calculateTotals();
-        }
-
-        function calculateTotals() {
-            const rows = document.querySelectorAll('#invoice-items tr');
-            let nettoGesamt = 0;
-            
-            const personsEnabled = document.getElementById('toggle-persons').checked;
-            const personsCount = parseInt(document.getElementById('anzahl-personen').value) || 1;
-            const personMultiplier = personsEnabled ? personsCount : 1;
-            
-            rows.forEach(row => {
-                const qty = parseFloat(row.querySelector('.qty').value) || 0;
-                const price = parseFloat(row.querySelector('.price').value) || 0;
-                const total = qty * price * personMultiplier;
-                row.querySelector('.item-total').textContent = total.toFixed(2);
-                nettoGesamt += total;
-            });
-            
-            const showTax = document.getElementById('toggle-tax').checked;
-            const ustSatz = 0.10; 
-            const ustBetrag = nettoGesamt * ustSatz;
-            const bruttoGesamt = showTax ? nettoGesamt + ustBetrag : nettoGesamt;
-            
-            document.getElementById('netto-gesamt').textContent = nettoGesamt.toFixed(2) + " €";
-            document.getElementById('ust-betrag').textContent = ustBetrag.toFixed(2) + " €";
-            document.getElementById('brutto-gesamt').textContent = bruttoGesamt.toFixed(2) + " €";
-            
-            const taxRow = document.getElementById('tax-row');
-            if (showTax) {
-                taxRow.classList.remove('hidden');
-            } else {
-                taxRow.classList.add('hidden');
-            }
-        }
-
-        calculateTotals();
-
-        // Service Worker handling
-        if ('serviceWorker' in navigator) {
-            if (navigator.serviceWorker.controller) {
-                console.log('Service Worker is controlling this page');
-            }
-
-            window.addEventListener('load', () => {
-                const urlParams = new URLSearchParams(window.location.search);
-                if (!urlParams.has('_nocache')) {
-                    navigator.serviceWorker.register('./sw.js')
-                        .then(reg => {
-                            console.log('Service Worker registriert', reg);
-                            reg.update();
-                        })
-                        .catch(err => console.error('Service Worker Fehler', err));
-                } else {
-                    console.log('Skipping Service Worker registration during cache-busting reload');
+            if (dateInput.value) {
+                // Check if we already have a number for this date
+                const currentNumber = invoiceInput.value;
+                const date = new Date(dateInput.value);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const expectedPrefix = `RE-${year}-${month}`;
+                
+                // If the number doesn't match the current month/year, generate new one
+                if (!currentNumber.startsWith(expectedPrefix)) {
+                    const newNumber = getNextInvoiceNumber(date);
+                    invoiceInput.value = newNumber;
+                    showToast(`Neue Rechnungsnummer: ${newNumber}`, 'info', 2000);
                 }
-            });
+            }
         }
 
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.shiftKey && e.key === 'R') {
-                e.preventDefault();
-                forceReload();
+        // Initialize invoice number on page load
+        function initializeInvoiceNumber() {
+            const dateInput = document.getElementById('rechnungs-datum');
+            const invoiceInput = document.getElementById('rechnungs-nr');
+            
+            // Set default date to today if empty
+            if (!dateInput.value) {
+                dateInput.valueAsDate = new Date();
             }
-            if (e.ctrlKey && e.shiftKey && e.key === 'Delete') {
-                e.preventDefault();
-                hardReset();
+            
+            // Check if we already have a number
+            if (!invoiceInput.value || invoiceInput.value === 'RE-2026-') {
+                const newNumber = getNextInvoiceNumber(dateInput.value);
+                invoiceInput.value = newNumber;
             }
+        }
+
+        // Manual override: Allow user to edit if they really want to
+        document.addEventListener('DOMContentLoaded', function() {
+            const invoiceInput = document.getElementById('rechnungs-nr');
+            
+            // Double-click to enable editing
+            invoiceInput.addEventListener('dblclick', function() {
+                this.readOnly = false;
+                this.style.background = '#fff';
+                this.style.cursor = 'text';
+                this.focus();
+                showToast('Rechnungsnummer kann jetzt bearbeitet werden', 'info', 2000);
+            });
+            
+            // When leaving the field, make it readonly again
+            invoiceInput.addEventListener('blur', function() {
+                this.readOnly = true;
+                this.style.background = '#f0f0f0';
+                this.style.cursor = 'default';
+            });
+            
+            // Reset counter function (hidden feature)
+            console.log('💡 Tipp: Doppelklick auf Rechnungs-Nr zum Bearbeiten');
         });
 
-        console.log('💡 Tastenkürzel:');
-        console.log('  Ctrl+Shift+R  → Seite neu laden (Cache leeren)');
-        console.log('  Ctrl+Shift+Delete → Alles zurücksetzen');
-    </script>
-</body>
-</html>
+        // ============================================================
+        // 3. DATA COLLECTION (for save/load)
+        // ============================================================
+        function collectInvoiceData() {
+            const rows = document.querySelectorAll('#invoice-items tr');
+            const items = [];
+            rows.forEach(row => {
+                const desc = row.querySelector('.table-input:not(.qty):not(.price)')?.value || '';
+                const qty = parseFloat(row.querySelector('.qty')?.value) || 0;
+                const price = parseFloat(row.querySelector('.price')?.value) || 0;
+                items.push({ description: desc, quantity: qty, price: price });
+            });
+
+            return {
+                version: '1.0',
+                savedAt: new Date().toISOString(),
+                invoice: {
+                    customer: document.getElementById('kunde-adresse').value,
+                    invoiceNumber: document.getElementById('rechnungs-nr').value,
+                    invoiceDate: document.getElementById('rechnungs-datum').value,
+                    period: document.getElementById('leistungszeitraum').value,
+                    personsEnabled: document.getElementById('toggle-persons').checked,
+                    personsCount: parseInt(document.getElementById('anzahl-personen').value) || 1,
+                    taxEnabled: document.getElementById('toggle-tax').checked,
+                    items: items
+                }
+            };
+        }
+
+        function loadInvoiceData(data) {
+            try {
+                const inv = data.invoice;
+                
+                document.getElementById('kunde-adresse').value = inv.customer || '';
+                document.getElementById('rechnungs-nr').value = inv.invoiceNumber || 'RE-2026-';
+                document.getElementById('rechnungs-datum').value = inv.invoiceDate || '';
+                document.getElementById('leistungszeitraum').value = inv.period || '';
+                
+                document.getElementById('toggle-persons').checked = inv.personsEnabled !== undefined ? inv.personsEnabled : true;
+                document.getElementById('anzahl-personen').value = inv.personsCount || 1;
+                togglePersons();
+                
+                document.getElementById('toggle-tax').checked = inv.taxEnabled !== undefined ? inv.taxEnabled : true;
+                
+                const tbody = document.getElementById('invoice-items');
+                tbody.innerHTML = '';
+                
+                if (inv.items && inv.items.length > 0) {
+                    inv.items.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td data-label="Beschreibung"><input type="text" class="table-input" value="${escapeHtml(item.description || '')}"></td>
+                            <td data-label="Menge / Nächte"><input type="number" class="table-input qty" value="${item.quantity || 0}" oninput="calculateTotals()"></td>
+                            <td data-label="Einzelpreis (€)"><input type="number" class="table-input price" value="${(item.price || 
