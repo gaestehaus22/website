@@ -218,7 +218,7 @@
             background-color: #2980b9;
         }
 
-        /* --- Sensationelles Responsives Tabellen-Design --- */
+        /* --- Responsive Tabellen-Design --- */
         table, thead, tbody, th, td, tr {
             display: block;
         }
@@ -247,7 +247,6 @@
             align-items: center;
         }
 
-        /* Label für mobile Ansicht generieren */
         td::before {
             content: attr(data-label);
             font-weight: 600;
@@ -258,7 +257,6 @@
             display: inline-block;
         }
 
-        /* Das X zum Löschen oben rechts platzieren */
         td.col-action {
             position: absolute;
             top: 8px;
@@ -309,6 +307,7 @@
         .totals-table {
             width: 100%;
             max-width: 320px;
+            border-collapse: collapse;
         }
         .totals-table tr {
             display: table-row;
@@ -320,6 +319,7 @@
         .totals-table td {
             display: table-cell;
             padding: 6px 0;
+            border: none;
         }
         .totals-table td::before { display: none; }
 
@@ -340,7 +340,6 @@
             line-height: 1.6;
         }
 
-        /* Tax row visibility */
         .tax-row {
             display: table-row;
         }
@@ -362,7 +361,6 @@
             .input-group label { width: 120px; flex-shrink: 0; }
             .btn { width: auto; }
 
-            /* Tabelle wieder in echte Tabelle verwandeln */
             table { display: table; width: 100%; border-collapse: collapse; margin-bottom: 30px; }
             thead { display: table-header-group; position: static; }
             thead tr { display: table-row; position: static; background: none; border: none; }
@@ -378,32 +376,276 @@
             .col-total { width: 15%; text-align: right !important; }
         }
 
-        /* --- Print-Ansicht --- */
+        /* --- PRINT-ANSICHT - Komplett überarbeitet --- */
         @media print {
-            body { background-color: #fff; padding: 0; }
-            .container { box-shadow: none; padding: 0; max-width: 100%; }
-            .action-bar, .btn-danger, .col-action, button, th:last-child, td:last-child { display: none !important; }
+            body { 
+                background: #fff; 
+                padding: 0; 
+                margin: 0;
+                font-size: 11px;
+            }
             
-            /* Print-Tabelle erzwingen */
-            table { display: table !important; width: 100% !important; border-collapse: collapse; }
-            thead { display: table-header-group !important; position: static !important; }
-            thead tr { display: table-row !important; position: static !important; }
-            tbody { display: table-row-group !important; }
-            tr { display: table-row !important; background: none !important; border: none !important; }
-            td { display: table-cell !important; border-bottom: 1px solid #ddd !important; padding: 6px !important; }
-            td::before { display: none !important; }
-            td.col-action { display: none !important; }
-
-            input, textarea { border: none !important; padding: 0 !important; background: transparent !important; appearance: none; width: 100% !important; }
-            .table-input { text-align: left; }
-            .input-group { flex-direction: row !important; align-items: center !important; }
-            .input-group label { width: auto !important; margin-right: 5px; }
-            .input-group label::after { content: ":"; }
-            textarea { height: auto !important; }
+            .container { 
+                box-shadow: none; 
+                padding: 20px; 
+                max-width: 100%; 
+                border-radius: 0;
+            }
             
-            /* Ensure tax row visibility in print */
-            .tax-row { display: table-row !important; }
-            .tax-row.hidden { display: none !important; }
+            .action-bar, .btn-danger, .col-action, .btn, th:last-child, td:last-child { 
+                display: none !important; 
+            }
+            
+            /* Header - für Print optimiert */
+            .header {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                align-items: flex-start !important;
+                border-bottom: 2px solid var(--primary-color) !important;
+                padding-bottom: 15px !important;
+                margin-bottom: 20px !important;
+            }
+            
+            .logo-area h1 {
+                font-size: 22px !important;
+                margin: 0 !important;
+            }
+            
+            .company-details {
+                text-align: right !important;
+                font-size: 11px !important;
+                line-height: 1.4 !important;
+            }
+            
+            /* Invoice Details - Grid für Print */
+            .invoice-details {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 20px !important;
+                margin-bottom: 20px !important;
+            }
+            
+            .box h3 {
+                font-size: 13px !important;
+                margin-top: 0 !important;
+                margin-bottom: 8px !important;
+            }
+            
+            .input-group {
+                display: flex !important;
+                flex-direction: row !important;
+                align-items: center !important;
+                margin-bottom: 6px !important;
+                gap: 8px !important;
+            }
+            
+            .input-group label {
+                width: 120px !important;
+                flex-shrink: 0 !important;
+                font-size: 11px !important;
+                font-weight: 600 !important;
+            }
+            
+            .input-group input, 
+            .input-group textarea {
+                border: none !important;
+                padding: 2px 0 !important;
+                background: transparent !important;
+                font-size: 11px !important;
+                width: auto !important;
+                flex: 1 !important;
+            }
+            
+            .input-group textarea {
+                height: auto !important;
+                min-height: 40px !important;
+            }
+            
+            .input-group-row {
+                display: flex !important;
+                align-items: center !important;
+                gap: 8px !important;
+                flex-wrap: wrap !important;
+            }
+            
+            .input-group-row input[type="number"] {
+                width: 60px !important;
+                border: none !important;
+                padding: 2px 0 !important;
+                background: transparent !important;
+                font-size: 11px !important;
+            }
+            
+            .input-group-row label {
+                width: auto !important;
+                font-size: 11px !important;
+                font-weight: normal !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 4px !important;
+            }
+            
+            .input-group-row input[type="checkbox"] {
+                width: 12px !important;
+                height: 12px !important;
+                margin: 0 !important;
+            }
+            
+            .disabled-field {
+                opacity: 0.5 !important;
+            }
+            
+            /* Tabelle für Print - als echte Tabelle */
+            table { 
+                display: table !important; 
+                width: 100% !important; 
+                border-collapse: collapse !important;
+                margin-bottom: 20px !important;
+                font-size: 11px !important;
+            }
+            
+            thead { 
+                display: table-header-group !important; 
+                position: static !important; 
+            }
+            
+            thead tr { 
+                display: table-row !important; 
+                position: static !important; 
+                background: #f0f0f0 !important;
+                border-bottom: 2px solid var(--primary-color) !important;
+            }
+            
+            thead th {
+                display: table-cell !important;
+                padding: 6px 8px !important;
+                text-align: left !important;
+                font-weight: 700 !important;
+                font-size: 11px !important;
+                border: none !important;
+            }
+            
+            thead th:last-child {
+                display: none !important;
+            }
+            
+            tbody { 
+                display: table-row-group !important; 
+            }
+            
+            tr { 
+                display: table-row !important; 
+                background: none !important; 
+                border: none !important; 
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            
+            td { 
+                display: table-cell !important; 
+                border-bottom: 1px solid #ddd !important; 
+                padding: 4px 8px !important;
+                text-align: left !important;
+                vertical-align: middle !important;
+            }
+            
+            td::before { 
+                display: none !important; 
+            }
+            
+            td.col-action { 
+                display: none !important; 
+            }
+            
+            .col-desc { width: 45% !important; }
+            .col-qty { width: 15% !important; text-align: center !important; }
+            .col-price { width: 20% !important; text-align: right !important; }
+            .col-total { width: 20% !important; text-align: right !important; }
+            
+            .table-input {
+                border: none !important;
+                padding: 2px 0 !important;
+                background: transparent !important;
+                font-size: 11px !important;
+                width: 100% !important;
+                text-align: inherit !important;
+            }
+            
+            /* Totals Bereich für Print */
+            .totals-area {
+                display: flex !important;
+                justify-content: flex-end !important;
+                margin-bottom: 20px !important;
+            }
+            
+            .totals-table {
+                width: 280px !important;
+                max-width: 280px !important;
+                border-collapse: collapse !important;
+                font-size: 12px !important;
+            }
+            
+            .totals-table tr {
+                display: table-row !important;
+                background: none !important;
+                border: none !important;
+            }
+            
+            .totals-table td {
+                display: table-cell !important;
+                padding: 4px 0 !important;
+                border: none !important;
+                text-align: left !important;
+            }
+            
+            .totals-table td:last-child {
+                text-align: right !important;
+            }
+            
+            .grand-total td {
+                font-weight: bold !important;
+                font-size: 14px !important;
+                border-top: 2px solid var(--primary-color) !important;
+                padding-top: 8px !important;
+            }
+            
+            .tax-row {
+                display: table-row !important;
+            }
+            .tax-row.hidden {
+                display: none !important;
+            }
+            
+            /* Footer für Print */
+            .footer {
+                border-top: 1px solid #ddd !important;
+                padding-top: 15px !important;
+                font-size: 10px !important;
+                text-align: center !important;
+                color: #666 !important;
+                line-height: 1.4 !important;
+            }
+            
+            /* Verstecke alle Checkboxen und Buttons im Print */
+            input[type="checkbox"] {
+                -webkit-appearance: none !important;
+                appearance: none !important;
+                border: 1px solid #999 !important;
+                width: 10px !important;
+                height: 10px !important;
+                display: inline-block !important;
+                position: relative !important;
+            }
+            
+            input[type="checkbox"]:checked::before {
+                content: "✓" !important;
+                position: absolute !important;
+                top: -2px !important;
+                left: 0 !important;
+                font-size: 10px !important;
+                color: #000 !important;
+            }
         }
     </style>
 </head>
@@ -549,18 +791,16 @@
             }, duration);
         }
 
-        // 1. FORCE RELOAD - Clears all caches and reloads from origin
+        // Force Reload
         function forceReload() {
             showToast('Leere Cache und lade Seite neu...', 'info', 2000);
             
-            // Clear all caches
             if ('caches' in window) {
                 caches.keys().then(keys => {
                     keys.forEach(key => {
                         caches.delete(key);
                     });
                 }).then(() => {
-                    // Clear Service Worker
                     if ('serviceWorker' in navigator) {
                         navigator.serviceWorker.getRegistrations().then(registrations => {
                             registrations.forEach(reg => {
@@ -570,26 +810,21 @@
                         });
                     }
                     
-                    // Force reload from origin with cache busting
                     setTimeout(() => {
-                        // Use location.reload(true) for cache bypass (deprecated but still works in many browsers)
-                        // or use a cache-busting query parameter
                         const url = new URL(window.location.href);
                         url.searchParams.set('_nocache', Date.now());
                         window.location.href = url.toString();
                     }, 500);
                 }).catch(err => {
                     console.error('Cache clearing error:', err);
-                    // Fallback: force reload anyway
                     window.location.reload(true);
                 });
             } else {
-                // Fallback for browsers without Cache API
                 window.location.reload(true);
             }
         }
 
-        // 2. HARD RESET - Resets all form fields to default values
+        // Hard Reset
         function hardReset() {
             if (!confirm('Möchten Sie wirklich alle Felder zurücksetzen? Diese Aktion kann nicht rückgängig gemacht werden!')) {
                 return;
@@ -597,28 +832,16 @@
 
             showToast('Setze alle Felder zurück...', 'info', 1500);
 
-            // Reset customer address
             document.getElementById('kunde-adresse').value = '';
-            
-            // Reset invoice number to default
             document.getElementById('rechnungs-nr').value = 'RE-2026-';
-            
-            // Reset date to today
             document.getElementById('rechnungs-datum').valueAsDate = new Date();
-            
-            // Reset period
             document.getElementById('leistungszeitraum').value = '';
-            
-            // Reset persons
             document.getElementById('anzahl-personen').value = '1';
             const togglePersonsCheckbox = document.getElementById('toggle-persons');
             togglePersonsCheckbox.checked = true;
             togglePersons();
-            
-            // Reset tax checkbox (checked by default)
             document.getElementById('toggle-tax').checked = true;
             
-            // Reset invoice items to just one default row
             const tbody = document.getElementById('invoice-items');
             tbody.innerHTML = '';
             const defaultRow = document.createElement('tr');
@@ -631,9 +854,7 @@
             `;
             tbody.appendChild(defaultRow);
             
-            // Recalculate totals
             calculateTotals();
-            
             showToast('Alle Felder wurden zurückgesetzt!', 'success', 2000);
         }
 
@@ -653,7 +874,6 @@
             calculateTotals();
         }
 
-        // Initial state
         togglePersons();
 
         function addRow() {
@@ -709,27 +929,20 @@
             }
         }
 
-        // Initial calculation
         calculateTotals();
 
-        // --- SERVICE WORKER HANDLING ---
-        // Check if service worker is registered and offer to unregister
+        // Service Worker handling
         if ('serviceWorker' in navigator) {
-            // Check if a service worker is already controlling the page
             if (navigator.serviceWorker.controller) {
                 console.log('Service Worker is controlling this page');
-                // You could show a subtle indicator here if desired
             }
 
-            // Register service worker but with a cache-busting approach
             window.addEventListener('load', () => {
-                // Only register if we're not in a cache-busting reload
                 const urlParams = new URLSearchParams(window.location.search);
                 if (!urlParams.has('_nocache')) {
                     navigator.serviceWorker.register('./sw.js')
                         .then(reg => {
                             console.log('Service Worker registriert', reg);
-                            // Check for updates on every load
                             reg.update();
                         })
                         .catch(err => console.error('Service Worker Fehler', err));
@@ -739,14 +952,7 @@
             });
         }
 
-        // Listen for messages from service worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.addEventListener('message', (event) => {
-                console.log('Message from service worker:', event.data);
-            });
-        }
-
-        // Keyboard shortcut: Ctrl+Shift+R for force reload, Ctrl+Shift+Delete for hard reset
+        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.shiftKey && e.key === 'R') {
                 e.preventDefault();
