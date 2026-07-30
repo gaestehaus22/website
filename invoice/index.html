@@ -918,44 +918,59 @@
         }
 
         // ============================================================
-        // 2. INVOICE NUMBER GENERATOR (with memory)
+        // 2. INVOICE NUMBER GENERATOR (FIXED - no auto-increment on load)
         // ============================================================
-        function getNextInvoiceNumber(date) {
+        
+        // Get the current counter value WITHOUT incrementing
+        function getCurrentCounter(year, month) {
+            const counterKey = `invoice_counter_${year}_${month}`;
+            return parseInt(localStorage.getItem(counterKey) || '0');
+        }
+
+        // Get the next counter value AND increment it
+        function getAndIncrementCounter(year, month) {
+            const counterKey = `invoice_counter_${year}_${month}`;
+            let counter = parseInt(localStorage.getItem(counterKey) || '0');
+            counter++;
+            localStorage.setItem(counterKey, String(counter));
+            return counter;
+        }
+
+        // Format invoice number from counter
+        function formatInvoiceNumber(year, month, counter) {
+            const monthStr = String(month).padStart(2, '0');
+            const counterStr = String(counter).padStart(2, '0');
+            return `RE-${year}-${monthStr}-${counterStr}`;
+        }
+
+        // Generate a NEW invoice number (increments counter)
+        function generateNewInvoiceNumber(date) {
             if (!date) date = new Date();
             if (typeof date === 'string') date = new Date(date);
             
             const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const month = date.getMonth() + 1;
             
-            // Get counter from localStorage
-            const counterKey = `invoice_counter_${year}_${month}`;
-            let counter = parseInt(localStorage.getItem(counterKey) || '0');
-            
-            // Increment counter
-            counter++;
-            localStorage.setItem(counterKey, String(counter));
-            
-            // Format: RE-2026-07-01
-            const counterStr = String(counter).padStart(2, '0');
-            return `RE-${year}-${month}-${counterStr}`;
+            const counter = getAndIncrementCounter(year, month);
+            return formatInvoiceNumber(year, month, counter);
         }
 
+        // Get the CURRENT invoice number (without incrementing)
         function getCurrentInvoiceNumber(date) {
             if (!date) date = new Date();
             if (typeof date === 'string') date = new Date(date);
             
             const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const month = date.getMonth() + 1;
             
-            const counterKey = `invoice_counter_${year}_${month}`;
-            let counter = parseInt(localStorage.getItem(counterKey) || '0');
+            let counter = getCurrentCounter(year, month);
             
+            // If counter is 0, generate the first one (this WILL increment)
             if (counter === 0) {
-                return getNextInvoiceNumber(date);
+                return generateNewInvoiceNumber(date);
             }
             
-            const counterStr = String(counter).padStart(2, '0');
-            return `RE-${year}-${month}-${counterStr}`;
+            return formatInvoiceNumber(year, month, counter);
         }
 
         function updateInvoiceNumber() {
@@ -963,16 +978,15 @@
             const invoiceInput = document.getElementById('rechnungs-nr');
             
             if (dateInput.value) {
-                // Check if we already have a number for this date
                 const currentNumber = invoiceInput.value;
                 const date = new Date(dateInput.value);
                 const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const expectedPrefix = `RE-${year}-${month}`;
+                const month = date.getMonth() + 1;
+                const expectedPrefix = `RE-${year}-${String(month).padStart(2, '0')}`;
                 
                 // If the number doesn't match the current month/year, generate new one
                 if (!currentNumber.startsWith(expectedPrefix)) {
-                    const newNumber = getNextInvoiceNumber(date);
+                    const newNumber = generateNewInvoiceNumber(date);
                     invoiceInput.value = newNumber;
                     showToast(`Neue Rechnungsnummer: ${newNumber}`, 'info', 2000);
                 }
@@ -989,11 +1003,9 @@
                 dateInput.valueAsDate = new Date();
             }
             
-            // Check if we already have a number
-            if (!invoiceInput.value || invoiceInput.value === 'RE-2026-') {
-                const newNumber = getNextInvoiceNumber(dateInput.value);
-                invoiceInput.value = newNumber;
-            }
+            // Get current number (will create first one if needed)
+            const currentNumber = getCurrentInvoiceNumber(dateInput.value);
+            invoiceInput.value = currentNumber;
         }
 
         // Manual override: Allow user to edit if they really want to
@@ -1016,7 +1028,6 @@
                 this.style.cursor = 'default';
             });
             
-            // Reset counter function (hidden feature)
             console.log('💡 Tipp: Doppelklick auf Rechnungs-Nr zum Bearbeiten');
         });
 
@@ -1098,9 +1109,9 @@
         }
 
         // ============================================================
-        // 4. SAVE FUNCTION (local only – will be overridden by cloud sync)
+        // 4. SAVE FUNCTION
         // ============================================================
-        function saveInvoiceLocal() {
+        function saveInvoice() {
             const data = collectInvoiceData();
             
             const id = 'inv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
@@ -1114,12 +1125,11 @@
             localStorage.setItem('gaestehaus22_invoices', JSON.stringify(saves));
             localStorage.setItem('gaestehaus22_last_invoice', id);
             
-            showToast(`Rechnung "${displayName}" lokal gespeichert!`, 'success', 2500);
-            return { id, data };
+            showToast(`Rechnung "${displayName}" gespeichert!`, 'success', 2500);
         }
 
         // ============================================================
-        // 5. LOAD FUNCTION (local)
+        // 5. LOAD FUNCTION
         // ============================================================
         function loadInvoice(id) {
             const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
@@ -1132,187 +1142,57 @@
             }
         }
 
-        // ============================================================
-        // 6. CLOUDFLARE WORKER INTEGRATION
-        // ============================================================
-        // ----- Configuration -----
-        const WORKER_URL = 'https://invoice-api.eichestrasse22.workers.dev';
-        const ADMIN_PASSWORD = '07111977'; // <-- CHANGE THIS to your actual password
-
-        // Enable cloud sync
-        window.cloudflareWorkerEnabled = true;
-
-        // ----- Override saveInvoice to also save to cloud -----
-        const originalSave = window.saveInvoice;
-        window.saveInvoice = function() {
-            // 1. Local save
-            const { id, data } = saveInvoiceLocal();
-
-            // 2. Cloud save (only if we have a password set)
-            if (ADMIN_PASSWORD && ADMIN_PASSWORD !== 'your-admin-password') {
-                fetch(WORKER_URL + '/save', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + ADMIN_PASSWORD
-                    },
-                    body: JSON.stringify(data)
-                })
-                .then(res => res.json())
-                .then(result => {
-                    if (result.success) {
-                        console.log('Cloud backup successful');
-                        showToast('☁️ Rechnung in der Cloud gesichert', 'success', 2000);
-                    } else {
-                        console.error('Cloud save failed:', result);
-                        showToast('Cloud-Sicherung fehlgeschlagen', 'error', 3000);
-                    }
-                })
-                .catch(err => {
-                    console.error('Cloud save error:', err);
-                    showToast('Fehler bei Cloud-Sicherung', 'error', 3000);
-                });
-            } else {
-                console.warn('Cloud backup skipped – ADMIN_PASSWORD not set or default');
-            }
-        };
-
-        // ----- Override openLoadModal to show local + cloud -----
-        const originalLoadModal = window.openLoadModal;
-        window.openLoadModal = async function() {
+        function openLoadModal() {
             const modal = document.getElementById('loadModal');
             const list = document.getElementById('savedInvoicesList');
-
-            // Local invoices
-            let localSaves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
-            let localKeys = Object.keys(localSaves);
-
-            // Cloud invoices (only if password is set)
-            let cloudItems = [];
-            if (ADMIN_PASSWORD && ADMIN_PASSWORD !== 'your-admin-password') {
-                try {
-                    const res = await fetch(WORKER_URL + '/list', {
-                        headers: { 'Authorization': 'Bearer ' + ADMIN_PASSWORD }
-                    });
-                    if (res.ok) cloudItems = await res.json();
-                } catch (e) {
-                    console.warn('Could not fetch cloud invoices', e);
-                }
-            }
-
-            // Merge: local first, cloud overrides only if id not exists
-            const allItems = {};
-            localKeys.forEach(key => {
-                const data = localSaves[key];
-                allItems[key] = {
-                    id: key,
-                    displayName: data.displayName || data.invoice?.invoiceNumber || 'Lokal',
-                    savedAt: data.savedAt || new Date().toISOString(),
-                    source: 'local'
-                };
-            });
-            cloudItems.forEach(item => {
-                if (!allItems[item.id]) {
-                    allItems[item.id] = { ...item, source: 'cloud' };
-                } else {
-                    // Mark as also in cloud
-                    allItems[item.id].cloud = true;
-                }
-            });
-
-            const keys = Object.keys(allItems).sort((a,b) => new Date(allItems[b].savedAt) - new Date(allItems[a].savedAt));
-
+            
+            const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
+            const keys = Object.keys(saves);
+            
             if (keys.length === 0) {
                 list.innerHTML = '<div class="no-saved">Keine gespeicherten Rechnungen gefunden.</div>';
             } else {
                 list.innerHTML = '';
-                keys.forEach(key => {
-                    const item = allItems[key];
+                keys.reverse().forEach(key => {
+                    const data = saves[key];
                     const div = document.createElement('div');
                     div.className = 'saved-invoice-item';
-                    const date = item.savedAt ? new Date(item.savedAt).toLocaleDateString('de-DE') : 'Unbekannt';
-                    const time = item.savedAt ? new Date(item.savedAt).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}) : '';
-                    const sourceLabel = item.source === 'cloud' ? '☁️' : '💾';
-                    const cloudBadge = item.cloud ? ' ☁️' : '';
+                    
+                    const date = data.savedAt ? new Date(data.savedAt).toLocaleDateString('de-DE') : 'Unbekannt';
+                    const time = data.savedAt ? new Date(data.savedAt).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}) : '';
+                    
                     div.innerHTML = `
-                        <div class="invoice-meta" onclick="loadInvoiceFromSource('${key}', '${item.source}')">
-                            <strong>${escapeHtml(item.displayName)} ${sourceLabel}${cloudBadge}</strong>
-                            <span>${date} ${time}</span>
+                        <div class="invoice-meta" onclick="loadInvoice('${key}')">
+                            <strong>${escapeHtml(data.displayName || 'Rechnung')}</strong>
+                            <span>${date} ${time} • ${data.invoice.items?.length || 0} Positionen</span>
                         </div>
-                        <button class="delete-saved" onclick="deleteInvoiceFromSource('${key}', '${item.source}', event)">🗑️</button>
+                        <button class="delete-saved" onclick="deleteSavedInvoice('${key}', event)">🗑️</button>
                     `;
                     list.appendChild(div);
                 });
             }
-
-            // Define load/delete functions globally
-            window.loadInvoiceFromSource = function(id, source) {
-                if (source === 'local') {
-                    loadInvoice(id);
-                } else {
-                    if (!ADMIN_PASSWORD || ADMIN_PASSWORD === 'your-admin-password') {
-                        showToast('Cloud-Passwort nicht konfiguriert', 'error', 3000);
-                        return;
-                    }
-                    fetch(WORKER_URL + '/load?id=' + encodeURIComponent(id), {
-                        headers: { 'Authorization': 'Bearer ' + ADMIN_PASSWORD }
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        loadInvoiceData(data);
-                        closeLoadModal();
-                    })
-                    .catch(err => {
-                        showToast('Fehler beim Laden aus Cloud', 'error', 3000);
-                        console.error(err);
-                    });
-                }
-            };
-
-            window.deleteInvoiceFromSource = function(id, source, event) {
-                event.stopPropagation();
-                if (!confirm('Diese Rechnung löschen?')) return;
-                if (source === 'local') {
-                    // Use existing local delete
-                    const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
-                    delete saves[id];
-                    localStorage.setItem('gaestehaus22_invoices', JSON.stringify(saves));
-                    showToast('Lokale Rechnung gelöscht', 'info', 2000);
-                    openLoadModal(); // refresh
-                } else {
-                    if (!ADMIN_PASSWORD || ADMIN_PASSWORD === 'your-admin-password') {
-                        showToast('Cloud-Passwort nicht konfiguriert', 'error', 3000);
-                        return;
-                    }
-                    fetch(WORKER_URL + '/delete?id=' + encodeURIComponent(id), {
-                        method: 'DELETE',
-                        headers: { 'Authorization': 'Bearer ' + ADMIN_PASSWORD }
-                    })
-                    .then(res => res.json())
-                    .then(result => {
-                        if (result.success) {
-                            showToast('Cloud-Rechnung gelöscht', 'info', 2000);
-                            openLoadModal(); // refresh
-                        } else {
-                            showToast('Löschen fehlgeschlagen', 'error', 2000);
-                        }
-                    })
-                    .catch(err => {
-                        showToast('Fehler beim Löschen', 'error', 2000);
-                    });
-                }
-            };
-
+            
             modal.classList.add('active');
-        };
+        }
 
-        // Also keep the original deleteSavedInvoice for local use (already defined)
-        // but we override it inside the modal as needed.
+        function closeLoadModal() {
+            document.getElementById('loadModal').classList.remove('active');
+        }
 
-        console.log('☁️ Cloudflare integration active');
+        function deleteSavedInvoice(id, event) {
+            event.stopPropagation();
+            if (!confirm('Diese gespeicherte Rechnung löschen?')) return;
+            
+            const saves = JSON.parse(localStorage.getItem('gaestehaus22_invoices') || '{}');
+            delete saves[id];
+            localStorage.setItem('gaestehaus22_invoices', JSON.stringify(saves));
+            
+            openLoadModal();
+            showToast('Rechnung gelöscht', 'info', 2000);
+        }
 
         // ============================================================
-        // 7. CORE FUNCTIONS (unchanged)
+        // 6. CORE FUNCTIONS
         // ============================================================
         function forceReload() {
             showToast('Leere Cache und lade Seite neu...', 'info', 2000);
@@ -1354,8 +1234,8 @@
             document.getElementById('toggle-persons').checked = true;
             document.getElementById('toggle-tax').checked = true;
             
-            // Reset invoice number
-            const newNumber = getNextInvoiceNumber(new Date());
+            // Generate NEW number (this will increment the counter)
+            const newNumber = generateNewInvoiceNumber(new Date());
             document.getElementById('rechnungs-nr').value = newNumber;
             togglePersons();
             
@@ -1442,7 +1322,7 @@
         }
 
         // ============================================================
-        // 8. INITIALIZATION
+        // 7. INITIALIZATION
         // ============================================================
         document.addEventListener('DOMContentLoaded', function() {
             initializeInvoiceNumber();
@@ -1481,6 +1361,17 @@
         console.log('  Ctrl+Shift+R  → Seite neu laden (Cache leeren)');
         console.log('  Ctrl+Shift+Delete → Alles zurücksetzen');
         console.log('  Doppelklick auf Rechnungs-Nr → Bearbeiten');
+        
+        // Debug info
+        console.log('📊 Aktuelle Zählerstände:');
+        const now = new Date();
+        const year = now.getFullYear();
+        for (let m = 1; m <= 12; m++) {
+            const counter = getCurrentCounter(year, m);
+            if (counter > 0) {
+                console.log(`  ${year}-${String(m).padStart(2, '0')}: ${counter} Rechnungen`);
+            }
+        }
     </script>
 </body>
 </html>
